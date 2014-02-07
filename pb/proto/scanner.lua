@@ -20,6 +20,7 @@
 
 local _G = _G
 local upper = string.upper
+local tableconcat = table.concat
 
 local lp = require"lpeg"
 local P=lp.P
@@ -71,11 +72,27 @@ function lines(subject)
 	end
 end
 
+local function show_text(text)
+	local out = {}
+	for i = 1, #text do
+		local char = text:sub(i,i)
+		local byte = char:byte()
+		if char == "\n" then
+			out[#out+1] = "\\n"
+		elseif byte < 32 then
+			out[#out+1] = "\\" .. byte
+		else
+			out[#out+1] = char
+		end
+	end
+	return tableconcat(out)
+end
+
 function error(msg)
 	return function (subject, i)
 		local line = lines(subject:sub(1,i))
 		_G.error('Lexical error in line '..line..', near "'
-			..(subject:sub(i-10,i)):gsub('\n','EOL').. '": ' .. msg, 0)
+			..show_text(subject:sub(i-10,i)).. '": ' .. msg, 0)
 	end
 end
 
