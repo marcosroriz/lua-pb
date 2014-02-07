@@ -59,10 +59,16 @@ local quote = P'"'
 ------------------------- Util. functions.
 -------------------------------------------------------------------------------
 
-local function line_accum(t, v) return t + v end
-local line_count = Cf(((Cc(1) * P"\n") + 1)^0, line_accum)
 function lines(subject)
-	return line_count:match(subject) + 1
+	local count, init = 1, 1
+	while true do
+		local pos = subject:find("\n", init, true)
+		if not pos then
+			return count
+		end
+		count = count + 1
+		init = pos + 1
+	end
 end
 
 function error(msg)
