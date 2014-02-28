@@ -42,7 +42,7 @@ local function new_message(mt, data)
 	-- check if data is already a message of this type.
 	if data and data[msg_tag] == mt then return data end
 	-- create new message.
-	local msg = setmetatable({ ['.data'] = {}}, mt)
+	local msg = setmetatable({ ['.data'] = {}, ['.raw'] = {} }, mt)
 	-- if data is nil, then message is empty.
 	if not data then return msg end
 

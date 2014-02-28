@@ -26,6 +26,7 @@ local tostring = tostring
 local setmetatable = setmetatable
 local type = type
 local rawset = rawset
+local tconcat = table.concat
 
 local mod_path = string.match(...,".*%.") or ''
 
@@ -77,7 +78,7 @@ function zigzag_strnum(str)
 		if negative then
 			out[i] = bxor(out[i], 0xff)
 		end
-		out[i] = string.char(out[i])
+		out[i] = char(out[i])
 	end
 	return table.concat(out)
 end
@@ -102,26 +103,32 @@ local function varint_next_byte(num)
 	return (b), varint_next_byte(rshift(num, 7))
 end
 
-local function varint_strnum(num, at, idx, mask, rest)
-	if not at then
-		num = num:gsub("^%z*", "")
-		if num == "" then return 0 end
-		at = #num
-		idx = 0
-		mask = 0xff
-		rest = 0
-	elseif idx == 7 and mask == 1 then
-		return bor(rest, 0x80), varint_strnum(num, at, 0, 0xff, 0)
+local function varint_strnum(num)
+	num = (("\0"):rep(8)..num):sub(-8)
+	local input = { num:byte(1,#num) }
+	local out = {}
+
+	out[1]  = band(0x7f, input[8])                                        -- 01111111
+	out[2]  = band(0x7f, bor( rshift(input[8], 7), lshift(input[7], 1) )) -- 02222221
+	out[3]  = band(0x7f, bor( rshift(input[7], 6), lshift(input[6], 2) )) -- 03333322
+	out[4]  = band(0x7f, bor( rshift(input[6], 5), lshift(input[5], 3) )) -- 04444333
+	out[5]  = band(0x7f, bor( rshift(input[5], 4), lshift(input[4], 4) )) -- 05554444
+	out[6]  = band(0x7f, bor( rshift(input[4], 3), lshift(input[3], 5) )) -- 06655555
+	out[7]  = band(0x7f, bor( rshift(input[3], 2), lshift(input[2], 6) )) -- 07666666
+	out[8]  = rshift(input[2], 1)                                         -- 07777777
+	out[9]  = band(0x7f, input[1], 0x7f)                                  -- 08888888
+	out[10] = rshift(input[1], 7)                                         -- 00000008
+
+	local len = #out
+	while len > 1 and out[len] == 0 do
+		len = len - 1
 	end
-	if at > 0 then
-		local b = byte(num:sub(at,at))
-		mask = rshift(mask, 1)
-		local val = bor(bor(lshift(band(b, mask), idx), rest), 0x80)
-		rest = rshift(b, 7-idx)
-		return (val), varint_strnum(num, at-1, idx+1, mask, rest)
-	else
-		return rest
+	local encode = {}
+	for i = 1, len-1 do
+		encode[#encode+1] = char( bor(0x80, out[i]) )
 	end
+	encode[#encode+1] = char( out[len] )
+	return tconcat(encode)
 end
 
 local function append(buf, off, len, data)
@@ -140,14 +147,14 @@ module(...)
 
 local function pack_varint64(num)
 	if type(num) == "string" and #num <= 8 then
-		return char(varint_strnum(num))
+		return varint_strnum(num)
 	end
 	return char(varint_next_byte(num))
 end
 
 local function pack_varint32(num)
 	if type(num) == "string" and #num <= 4 then
-		return char(varint_strnum(num))
+		return varint_strnum(num)
 	end
 	return char(varint_next_byte(num))
 end

@@ -28,6 +28,7 @@ local sformat = string.format
 local type = type
 local pcall = pcall
 local rawset = rawset
+local tconcat = table.concat
 
 local mod_path = string.match(...,".*%.") or ''
 
@@ -76,14 +77,33 @@ module(...)
 local function unpack_varint64(data, off)
 	local b = data:byte(off)
 	local num = band(b, 0x7F)
+	local raw = { 0, 0, 0, 0, 0, 0, 0, num }
 	local boff = 7
+	local at = 2
 	while b >= 128 do
 		off = off + 1
 		b = data:byte(off)
-		num = bor(num, lshift(band(b, 0x7F), boff))
+		local n = band(b, 0x7F)
+		
+		if at < 8 then
+			raw[9-at] = rshift(n, at-1)
+			raw[10-at] = band(0xff, bor(raw[10-at], lshift(n, 9-at)))
+		elseif at == 8 then
+			raw[2] = band(0xff, bor(raw[2], lshift(n, 1)))
+		elseif at == 9 then
+			raw[1] = band(0x7f, n)
+		elseif at == 10 then
+			raw[1] = band(0xff, bor(raw[1], lshift(n, 7)))
+		end
+		at = at + 1
+		
+		num = bor(num, lshift(n, boff))
 		boff = boff + 7
 	end
-	return num, off + 1
+	for i = 1, #raw do
+		raw[i] = char(raw[i])
+	end
+	return num, off + 1, tconcat(raw)
 end
 
 local function unpack_varint32(data, off)
@@ -274,11 +294,12 @@ __index = function(tab, ftype)
 	end
 	rawset(tab, ftype, function(data, off, len, arr)
 		local i=#arr
+		local raw
 		while (off <= len) do
 			i = i + 1
-			arr[i], off = funpack(data, off, len, nil)
+			arr[i], off, raw = funpack(data, off, len, nil)
 		end
-		return arr, off
+		return arr, off, raw
 	end)
 end,
 })
@@ -295,7 +316,7 @@ local function unpack_length_field(data, off, len, field, val)
 	return field.unpack(data, off, off + field_len - 1, val)
 end
 
-local function unpack_field(data, off, len, field, mdata)
+local function unpack_field(data, off, len, field, mdata, mraw)
 	local name = field.name
 	local val
 
@@ -325,14 +346,17 @@ local function unpack_field(data, off, len, field, mdata)
 		return val, off
 	end
 	-- is basic type.
-	val, off = field.unpack(data, off, len)
+	local raw
+	val, off, raw = field.unpack(data, off, len)
 	mdata[name] = val
+	mraw[name] = raw
 	return val, off
 end
 
 local function unpack_fields(data, off, len, msg, tags, is_group)
 	local tag, wire_type, field, val
 	local mdata = msg['.data']
+	local mraw = msg['.raw']
 	local unknowns
 
 	while (off <= len) do
@@ -351,7 +375,7 @@ local function unpack_fields(data, off, len, msg, tags, is_group)
 				error(sformat("Malformed Message, wire_type of field doesn't match (%d ~= %d)!",
 					field.wire_type, wire_type))
 			end
-			val, off = unpack_field(data, off, len, field, mdata)
+			val, off = unpack_field(data, off, len, field, mdata, mraw)
 		else
 			if not unknowns then
 				-- check if Message already has Unknown fields object.
