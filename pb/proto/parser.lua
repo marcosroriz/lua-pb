@@ -79,7 +79,7 @@ local function message_body(...)
 	local fcount = 0
 	-- check for empty message.
 	if #body == 1 then
-		if type(body[1]) == 'string' then
+		if node_type(body[1]) == 'string' then
 			body[1] = nil
 		end
 	end
