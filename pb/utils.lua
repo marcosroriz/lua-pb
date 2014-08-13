@@ -25,7 +25,6 @@ module(...)
 
 --
 -- Simple table dup function
---
 local function copy_recur(seen, tab)
 	if type(tab) ~= 'table' then return tab end
 	local new = seen[tab]
