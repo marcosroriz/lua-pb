@@ -2,7 +2,7 @@
 package	= 'lua-pb'
 version	= 'scm-1'
 source	= {
-	url	= 'git://github.com/hishamhm/lua-pb.git'
+	url	= 'git://github.com/marcosroriz/lua-pb.git'
 }
 description	= {
 	summary	= "Lua Protocol Buffers",
